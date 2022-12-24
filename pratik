@@ -1,0 +1,72 @@
+import requests
+import pandas as pd
+
+class ScriptData:
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+        self.data = {}
+
+    def fetch_intraday_data(self, script: str):
+        url = f"https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol={script}&interval=5min&apikey={self.api_key}"
+        response = requests.get(url)
+        data = response.json()
+        self.data[script] = data
+
+    def convert_intraday_data(self, script: str):
+        data = self.data[script]["Time Series (5min)"]
+        df = pd.DataFrame.from_dict(data, orient="index", columns=["open", "high", "low", "close", "volume"])
+        df.index = pd.to_datetime(df.index)
+        df = df.sort_index()
+        self.data[script] = df
+
+    def __getitem__(self, script: str):
+        return self.data[script]
+
+    def __setitem__(self, script: str, value):
+        self.data[script] = value
+
+    def __contains__(self, script: str):
+        return script in self.data
+        
+    """ 2 question"""
+    import pandas as pd
+
+def indicator1(df: pd.DataFrame, timeperiod: int) -> pd.DataFrame:
+    df_indicator = df[["timestamp", "close"]].copy()
+    df_indicator["indicator"] = df_indicator["close"].rolling(timeperiod).mean()
+    return df_indicator
+""" 3 quetsion """
+import pandas as pd
+
+class Strategy:
+    def __init__(self, script_data: ScriptData):
+        self.script_data = script_data
+
+    def generate_signals(self, script: str, timeperiod: int):
+        # Fetch and convert the intraday data
+        self.script_data.fetch_intraday_data(script)
+        self.script_data.convert_intraday_data(script)
+        df = self.script_data[script]
+
+        # Compute the indicator data
+        df_indicator = indicator1(df, timeperiod)
+
+        # Generate the signals DataFrame
+        df_signals = df[["timestamp"]].copy()
+        df_signals["signal"] = "NO_SIGNAL"
+        df_signals.loc[df_indicator["indicator"] > df["close"], "signal"] = "BUY"
+        df_signals.loc[df_indicator["indicator"] < df["close"], "signal"] = "SELL"
+        self.signals = df_signals
+"""4 qetsion """
+from pyalgotrading.chart import CandlestickChart
+
+# Create the CandlestickChart instance
+cc = CandlestickChart()
+
+# Add the data to the chart
+cc.add_data(df, "close", "high", "low", "open", "timestamp", title="Stock Data")
+cc.add_data(df_indicator, "indicator", title="Indicator Data")
+
+# Show the chart
+cc.show()
+
